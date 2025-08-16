@@ -1,18 +1,26 @@
+import { db } from '../db';
+import { usersTable } from '../db/schema';
 import { type User } from '../schema';
+import { eq, and } from 'drizzle-orm';
 
-export async function getCurrentUser(userId: number): Promise<User | null> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching the current authenticated user by ID
-    // It should return user details or null if user doesn't exist or is inactive
-    return Promise.resolve({
-        id: userId,
-        email: 'placeholder@example.com',
-        password_hash: 'hashed_password_placeholder',
-        full_name: 'Placeholder Name',
-        phone: null,
-        role: 'calon_pengangkut',
-        is_active: true,
-        created_at: new Date(),
-        updated_at: new Date()
-    } as User);
-}
+export const getCurrentUser = async (userId: number): Promise<User | null> => {
+  try {
+    // Query user by ID and ensure they are active
+    const results = await db.select()
+      .from(usersTable)
+      .where(and(
+        eq(usersTable.id, userId),
+        eq(usersTable.is_active, true)
+      ))
+      .execute();
+
+    if (results.length === 0) {
+      return null;
+    }
+
+    return results[0];
+  } catch (error) {
+    console.error('Failed to get current user:', error);
+    throw error;
+  }
+};

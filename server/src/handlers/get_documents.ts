@@ -1,24 +1,47 @@
+import { db } from '../db';
+import { documentsTable, applicationsTable } from '../db/schema';
 import { type Document } from '../schema';
+import { eq } from 'drizzle-orm';
 
 export async function getDocuments(applicationId: number, userRole: string, userId?: number): Promise<Document[]> {
-    // This is a placeholder declaration! Real code should be implemented here.
-    // The goal of this handler is fetching all documents for an application
-    // Should validate access permissions based on user role and ownership
-    // For calon_pengangkut: only their own application documents
-    // For admin_dinas_sosial: any application documents
-    return Promise.resolve([
-        {
-            id: 1,
-            application_id: applicationId,
-            document_type: 'ktp',
-            file_name: 'ktp_example.pdf',
-            file_path: '/uploads/documents/ktp_example.pdf',
-            file_size: 1024000,
-            mime_type: 'application/pdf',
-            is_verified: false,
-            verified_by: null,
-            verified_at: null,
-            uploaded_at: new Date()
-        } as Document
-    ]);
+  try {
+    // For calon_pengangkut role, we need to verify they own the application
+    if (userRole === 'calon_pengangkut') {
+      if (!userId) {
+        throw new Error('User ID is required for calon_pengangkut role');
+      }
+
+      // Check if the application belongs to the user
+      const application = await db.select()
+        .from(applicationsTable)
+        .where(eq(applicationsTable.id, applicationId))
+        .execute();
+
+      if (application.length === 0) {
+        throw new Error('Application not found');
+      }
+
+      if (application[0].user_id !== userId) {
+        throw new Error('Access denied: You can only view documents for your own applications');
+      }
+    }
+
+    // Fetch documents for the application
+    const documents = await db.select()
+      .from(documentsTable)
+      .where(eq(documentsTable.application_id, applicationId))
+      .execute();
+
+    // Convert numeric fields and ensure proper types
+    return documents.map(doc => ({
+      ...doc,
+      // No numeric fields to convert in documents table
+      uploaded_at: doc.uploaded_at,
+      verified_at: doc.verified_at
+    }));
+
+  } catch (error) {
+    console.error('Get documents failed:', error);
+    throw error;
+  }
 }
